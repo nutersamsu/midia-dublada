@@ -43,6 +43,20 @@ ip_vpn() {
   echo "IP público dos torrents: $(docker compose exec -T gluetun wget -qO- https://ipinfo.io/ip)"
 }
 
+tailscale_() {
+  if [[ $COMPOSE_FILE != *tailscale* ]]; then
+    command -v tailscale >/dev/null && tailscale status | head -5 || echo "Tailscale não instalado (rode o instalar.sh para instalar)."
+    return
+  fi
+  if docker compose exec -T tailscale tailscale status --json 2>/dev/null | grep -q '"BackendState": *"Running"'; then
+    echo "Conectado. Endereço fora de casa: $(docker compose exec -T tailscale tailscale ip -4 | head -1)"
+  else
+    echo "Não conectado. Abra o link abaixo para entrar na sua conta:"
+    docker compose exec -T tailscale tailscale login --timeout 5s 2>&1 | grep -oE 'https://login\.tailscale\.com/a/[A-Za-z0-9]+' | tail -1 \
+      || docker compose logs tailscale | grep -oE 'https://login\.tailscale\.com/a/[A-Za-z0-9]+' | tail -1
+  fi
+}
+
 case "${1:-}" in
   status) status ;;
   atualizar) atualizar ;;
@@ -53,15 +67,16 @@ case "${1:-}" in
   reiniciar) docker compose restart ;;
   backup) backup ;;
   vpn) ip_vpn ;;
+  tailscale) tailscale_ ;;
   "")
     PS3=$'\nEscolha um número: '
     select op in "Ver status" "Atualizar tudo" "Reconfigurar (refaz as ligações entre os apps)" \
-                 "Ver logs de um app" "Backup das configurações" "Ver IP da VPN" "Parar tudo" "Iniciar tudo" "Sair"; do
+                 "Ver logs de um app" "Backup das configurações" "Tailscale (acesso fora de casa)" "Parar tudo" "Iniciar tudo" "Sair"; do
       case $REPLY in
-        1) status ;; 2) atualizar ;; 3) reconfigurar ;; 4) logs ;; 5) backup ;; 6) ip_vpn ;;
+        1) status ;; 2) atualizar ;; 3) reconfigurar ;; 4) logs ;; 5) backup ;; 6) tailscale_ ;;
         7) docker compose stop ;; 8) docker compose up -d ;; *) break ;;
       esac
       break
     done ;;
-  *) echo "Comandos: status | atualizar | reconfigurar | logs [app] | backup | vpn | parar | iniciar | reiniciar"; exit 1 ;;
+  *) echo "Comandos: status | atualizar | reconfigurar | logs [app] | backup | tailscale | vpn | parar | iniciar | reiniciar"; exit 1 ;;
 esac

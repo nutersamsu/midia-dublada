@@ -9,7 +9,7 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 ```
   Você pede no          procura só          baixa             organiza e          você assiste
   📱 Seerr      ───▶   🔎 Radarr/Sonarr ───▶ ⬇ qBittorrent ───▶ 📁 renomeia em PT ───▶ 📺 Jellyfin
-                        (filtro dublado)      (VPN opcional)
+                        (filtro dublado)                                     🌍 fora de casa: Tailscale
 ```
 
 | Programa | Para que serve |
@@ -20,7 +20,7 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 | **Prowlarr** | Guarda as fontes de busca (indexadores) e repassa para os outros |
 | **qBittorrent** | Faz os downloads |
 | **FlareSolverr** | Ajuda com fontes protegidas pelo Cloudflare |
-| **Gluetun** (opcional) | VPN só para os downloads |
+| **Tailscale** (opcional) | Acesso fora de casa, sem abrir portas no roteador |
 
 ---
 
@@ -61,7 +61,7 @@ O instalador pergunta:
 
 1. **Onde guardar os arquivos.** Ele mostra os discos e o espaço livre de cada um.
 2. **Usuário e senha.** São os mesmos para todos os painéis; se você deixar a senha em branco, ele gera uma.
-3. **Se quer VPN** ([saiba mais](#-vpn)).
+3. **Se quer o Tailscale**, para assistir fora de casa ([saiba mais](#-fora-de-casa-tailscale)).
 4. **Se quer compartilhar** um pouco depois de baixar.
 
 Depois ele baixa os programas (cerca de 3 GB na primeira vez), configura tudo e mostra os endereços:
@@ -138,14 +138,26 @@ Se aparecer um caso ambíguo, ela não mexe em nada; só registra no log: `sudo 
 ### Baixando à mão no qBittorrent
 Escolha a **categoria `radarr`** para filme ou **`sonarr`** para série. O resto é automático: cadastro, nome em português, pasta certa e aviso ao Jellyfin.
 
-## 🔒 VPN
+## 🌍 Fora de casa (Tailscale)
 
-Sem VPN, o seu IP de casa aparece para quem compartilha o mesmo torrent. Com VPN, **só os downloads** passam por ela; o Jellyfin e o resto continuam normais. Se a VPN cair, os downloads **param**, em vez de sair pelo seu IP.
+O [Tailscale](https://tailscale.com) liga este computador aos seus celulares, notebooks e TVs numa rede privada. Fora de casa, você abre o Jellyfin e o Seerr como se estivesse no Wi-Fi de casa, **sem abrir portas no roteador**. É grátis para uso pessoal.
 
-Você precisa de uma VPN paga compatível com o [Gluetun](https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers), como Mullvad, ProtonVPN, NordVPN, Surfshark, AirVPN, PIA ou Windscribe. No site da VPN, gere uma configuração **WireGuard** e copie a `PrivateKey` e o `Address` quando o instalador pedir.
+1. Responda **sim** quando o instalador perguntar.
+2. Ele mostra um link `https://login.tailscale.com/...`. Abra no celular ou no PC e entre com Google, Microsoft ou Apple; a conta é criada na hora.
+3. Instale o app **Tailscale** no celular ou no notebook e entre com a mesma conta.
+4. Fora de casa, com o Tailscale ligado, use os endereços `http://100.x.y.z:8096` que o instalador mostrou.
 
-Para conferir o IP que os torrents usam: `sudo ./gerenciar.sh vpn`.
-Para ativar ou desativar depois, rode `sudo ./instalar.sh` de novo.
+Se o computador já tiver o Tailscale instalado, o instalador percebe e não instala outro.
+Conferir ou refazer o login: `sudo ./gerenciar.sh tailscale`.
+
+### VPN paga para os downloads (avançado, por sua conta)
+O projeto **não configura** VPN paga. Quem quiser que os torrents saiam por uma VPN, como Mullvad, ProtonVPN ou AirVPN, pode usar o arquivo pronto `compose/qbittorrent-vpn.yml` ([Gluetun](https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers)):
+
+1. No `.env`, troque `compose/qbittorrent.yml` por `compose/qbittorrent-vpn.yml` na linha `COMPOSE_FILE`.
+2. Preencha as linhas `VPN_...` com os dados da sua VPN.
+3. Rode `sudo ./gerenciar.sh reconfigurar` e confira o IP com `sudo ./gerenciar.sh vpn`.
+
+Se a VPN cair, os downloads param, em vez de sair pelo seu IP.
 
 ## 🛠 Dia a dia
 
@@ -202,7 +214,7 @@ Ela está no arquivo `.env` (`sudo cat .env | grep SENHA`).
 
 <details><summary><b>Acesso fora de casa</b></summary>
 
-A opção mais simples e segura é o [Tailscale](https://tailscale.com) no computador e no celular. Se preferir um domínio com HTTPS (Nginx Proxy Manager, Caddy...), aponte só para o Jellyfin e o Seerr. **Não exponha** o Radarr, o Sonarr, o Prowlarr e o qBittorrent na internet.
+Use o [Tailscale](#-fora-de-casa-tailscale), que o instalador já oferece. Se preferir um domínio com HTTPS (Nginx Proxy Manager, Caddy...), aponte só para o Jellyfin e o Seerr. **Não exponha** o Radarr, o Sonarr, o Prowlarr e o qBittorrent na internet.
 </details>
 
 <details><summary><b>Usar a placa de vídeo no Jellyfin</b></summary>

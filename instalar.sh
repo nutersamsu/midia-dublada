@@ -56,7 +56,8 @@ ${N}${C}
 
   Vai instalar: Jellyfin (assistir), Seerr (pedir), Radarr (filmes),
   Sonarr (séries), Lidarr (música), Prowlarr (fontes), qBittorrent
-  (downloads), FlareSolverr e, se você quiser, uma VPN.
+  (downloads), FlareSolverr e, se você quiser, o Tailscale para
+  assistir fora de casa.
 
   Responda as perguntas; o valor entre [colchetes] é o padrão (só aperte Enter).
 EOF
@@ -118,33 +119,26 @@ pergunta "Usuário" "${USUARIO:-admin}"; USUARIO=$RESP
 if [[ -n ${SENHA:-} ]] && (( ! AUTO )) && sim_nao "Manter a senha atual?" s; then :; else senha_secreta; SENHA=$RESP; fi
 (( ${#SENHA} >= 8 )) || erro "A senha precisa ter pelo menos 8 caracteres."
 
-# ------------------------------------------------------------ VPN
-titulo "4/6 VPN para os downloads"
-info "Com VPN, quem vê os torrents enxerga o IP da VPN, não o da sua casa."
-info "Se a VPN cair, os downloads PARAM (não vazam). Precisa de uma VPN paga"
-info "(Mullvad, ProtonVPN, NordVPN, Surfshark, AirVPN, PIA, Windscribe...)."
-VPN_PADRAO=n; [[ ${COMPOSE_FILE:-} == *vpn* ]] && VPN_PADRAO=s
-if sim_nao "Usar VPN?" $VPN_PADRAO; then
-  USAR_VPN=1
-  info "Nome do provedor como o Gluetun conhece: mullvad, protonvpn, nordvpn, surfshark,"
-  info "airvpn, private internet access, windscribe, ivpn, expressvpn, cyberghost..."
-  info "(lista completa: https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers)"
-  pergunta "Provedor" "${VPN_PROVEDOR:-protonvpn}"; VPN_PROVEDOR=$(echo "$RESP" | tr 'A-Z' 'a-z')
-  pergunta "Tipo (wireguard é mais rápido; openvpn usa usuário/senha)" "${VPN_TIPO:-wireguard}"; VPN_TIPO=$RESP
-  if [[ $VPN_TIPO == wireguard ]]; then
-    info "No site da VPN, gere um arquivo WireGuard; dele você copia PrivateKey e Address."
-    pergunta "PrivateKey" "${VPN_WIREGUARD_CHAVE:-}"; VPN_WIREGUARD_CHAVE=$RESP
-    pergunta "Address (ex.: 10.2.0.2/32)" "${VPN_WIREGUARD_ENDERECO:-}"; VPN_WIREGUARD_ENDERECO=$RESP
-    [[ -n $VPN_WIREGUARD_CHAVE ]] || erro "Sem a PrivateKey a VPN não conecta."
-  else
-    info "Use o usuário/senha de OpenVPN do painel da VPN (não é o login do site)."
-    pergunta "Usuário OpenVPN" "${VPN_OPENVPN_USUARIO:-}"; VPN_OPENVPN_USUARIO=$RESP
-    pergunta "Senha OpenVPN" "${VPN_OPENVPN_SENHA:-}"; VPN_OPENVPN_SENHA=$RESP
-  fi
-  pergunta "País do servidor (em inglês, ex.: Brazil, Netherlands; Enter = qualquer)" "${VPN_PAIS:-}"; VPN_PAIS=$RESP
-  [[ -e /dev/net/tun ]] || alerta "/dev/net/tun não existe (num LXC do Proxmox, libere o TUN no container)."
+# ------------------------------------------------------------ Tailscale
+titulo "4/6 Assistir fora de casa (Tailscale)"
+info "O Tailscale cria uma rede privada entre este computador e os seus celulares,"
+info "notebooks e TVs: fora de casa você abre o Jellyfin e o Seerr como se estivesse"
+info "no Wi-Fi de casa, sem abrir portas no roteador. É grátis para uso pessoal."
+# VPN paga para os torrents (Gluetun) não é perguntada: quem quiser configura à mão (ver README).
+USAR_VPN=0; [[ ${COMPOSE_FILE:-} == *qbittorrent-vpn* ]] && USAR_VPN=1
+USAR_TS=0; TS_NATIVO=0
+if command -v tailscale >/dev/null && tailscale status >/dev/null 2>&1 && [[ ${COMPOSE_FILE:-} != *tailscale* ]]; then
+  TS_NATIVO=1
+  ok "Este computador já está no Tailscale ($(tailscale ip -4 2>/dev/null | head -1)); nada a instalar."
 else
-  USAR_VPN=0
+  TS_PADRAO=s; [[ -n ${COMPOSE_FILE:-} && ${COMPOSE_FILE} != *tailscale* ]] && TS_PADRAO=n
+  if sim_nao "Instalar o Tailscale?" $TS_PADRAO; then
+    USAR_TS=1
+    pergunta "Nome deste computador no Tailscale" "${TAILSCALE_NOME:-midia}"
+    TAILSCALE_NOME=$(echo "$RESP" | tr 'A-Z_ ' 'a-z--' | tr -cd 'a-z0-9-')
+    TAILSCALE_USERSPACE=false
+    [[ -e /dev/net/tun ]] || { TAILSCALE_USERSPACE=true; info "(sem /dev/net/tun: usando o modo sem placa de rede virtual)"; }
+  fi
 fi
 
 # ------------------------------------------------------------ preferências
@@ -184,6 +178,7 @@ ok "Portas escolhidas"
 COMPOSE_FILE="docker-compose.yml:compose/qbittorrent.yml"
 (( USAR_VPN )) && COMPOSE_FILE="docker-compose.yml:compose/qbittorrent-vpn.yml"
 (( GPU )) && COMPOSE_FILE+=":compose/jellyfin-gpu.yml"
+(( USAR_TS )) && COMPOSE_FILE+=":compose/tailscale.yml"
 
 # ------------------------------------------------------------ .env
 umask 077
@@ -229,7 +224,13 @@ PORTA_TORRENT=$PORTA_TORRENT
 GRUPO_VIDEO=$GRUPO_VIDEO
 GRUPO_RENDER=$GRUPO_RENDER
 
-# VPN (Gluetun) — só vale com COMPOSE_FILE contendo qbittorrent-vpn.yml
+# Tailscale (acesso fora de casa) — só vale com COMPOSE_FILE contendo compose/tailscale.yml
+TAILSCALE_NOME=${TAILSCALE_NOME:-midia}
+TAILSCALE_USERSPACE=${TAILSCALE_USERSPACE:-false}
+
+# AVANÇADO, por sua conta: VPN paga só para os torrents (Gluetun). Para ativar, troque
+# compose/qbittorrent.yml por compose/qbittorrent-vpn.yml no COMPOSE_FILE, preencha abaixo
+# e rode: sudo ./gerenciar.sh reconfigurar   (provedores: https://github.com/qdm12/gluetun-wiki)
 VPN_PROVEDOR='${VPN_PROVEDOR:-}'
 VPN_TIPO=${VPN_TIPO:-wireguard}
 VPN_WIREGUARD_CHAVE='${VPN_WIREGUARD_CHAVE:-}'
@@ -263,6 +264,32 @@ if (( USAR_VPN )); then
     || erro "A VPN não conectou. Veja o motivo:  docker compose logs gluetun   (confira chave/usuário e rode de novo)"
   ok "VPN conectada — IP público dos torrents: $(docker compose exec -T gluetun wget -qO- https://ipinfo.io/ip 2>/dev/null || echo '?')"
 fi
+if (( USAR_TS )); then
+  ts() { docker compose exec -T tailscale tailscale "$@" 2>/dev/null; }
+  ts_ok() { ts status --json | grep -q '"BackendState": *"Running"'; }
+  sleep 5
+  if ! ts_ok; then
+    URL=""
+    for _ in $(seq 1 20); do
+      URL=$(docker compose logs tailscale 2>/dev/null | grep -oE 'https://login\.tailscale\.com/a/[A-Za-z0-9]+' | tail -1)
+      [[ -n $URL ]] && break; sleep 3
+    done
+    echo
+    info "${N}Conecte este computador à sua conta Tailscale:${F}"
+    info "abra no celular ou no PC:  ${N}${URL:-(veja: docker compose logs tailscale)}${F}"
+    info "(não tem conta? ela é criada nesse link, com Google, Microsoft ou Apple)"
+    info "Esperando você entrar (até 10 minutos)..."
+    for _ in $(seq 1 120); do ts_ok && break; sleep 5; done
+  fi
+  if ts_ok; then
+    IP_TS=$(ts ip -4 | head -1)
+    ok "Tailscale conectado: $IP_TS"
+  else
+    alerta "Tailscale ainda não conectado. Depois rode: sudo ./gerenciar.sh tailscale"
+  fi
+elif (( TS_NATIVO )); then
+  IP_TS=$(tailscale ip -4 2>/dev/null | head -1)
+fi
 docker compose run --rm configurador || erro "A configuração automática parou. Leia a mensagem acima e rode o instalador de novo."
 
 # ------------------------------------------------------------ resumo
@@ -283,7 +310,11 @@ ${N}${V}══════════════════  TUDO PRONTO!  �
     Lidarr (música) ............. $U:$PORTA_LIDARR
     Prowlarr (fontes) ........... $U:$PORTA_PROWLARR
     qBittorrent (downloads) ..... $U:$PORTA_QBITTORRENT
-
+${IP_TS:+
+  ${N}Fora de casa (com o app Tailscale ligado no celular/PC)${F}
+    Assistir (Jellyfin) ......... http://$IP_TS:$PORTA_JELLYFIN
+    Pedir (Seerr) ............... http://$IP_TS:$PORTA_SEERR
+}
   ${N}${A}Falta só 1 passo:${F} abra o Prowlarr > Indexadores > "+ Adicionar indexador"
   e escolha as fontes de busca que você quer usar. Elas vão sozinhas para
   o Radarr, Sonarr e Lidarr. Depois é só pedir um filme no Seerr.

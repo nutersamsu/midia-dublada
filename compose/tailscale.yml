@@ -1,0 +1,21 @@
+# Tailscale: acesso fora de casa sem abrir portas no roteador. Usa a rede do próprio computador
+# (network_mode: host), então todos os painéis respondem também no IP do Tailscale (100.x.y.z).
+# O login é feito uma vez pelo link que o instalador mostra; fica salvo em config/tailscale.
+services:
+  tailscale:
+    restart: unless-stopped
+    image: tailscale/tailscale:latest
+    network_mode: host
+    cap_add: [NET_ADMIN, NET_RAW]
+    devices: ["/dev/net/tun:/dev/net/tun"]
+    environment:
+      TS_HOSTNAME: ${TAILSCALE_NOME:-midia}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: ${TAILSCALE_USERSPACE:-false}
+      TS_AUTH_ONCE: "true"
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - ./config/tailscale:/var/lib/tailscale
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
