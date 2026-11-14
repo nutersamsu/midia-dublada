@@ -1,8 +1,10 @@
-# 🇧🇷 arr-dublado-ptbr
+# 🇧🇷 Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado
 
 **Sua própria "Netflix" em casa, só com versões dubladas em português, montada por um único instalador.**
 
 Você pede um filme ou uma série pelo celular, ele é procurado e baixado sozinho (só versão **dublada PT-BR**), organizado com nome e capa em português e aparece pronto para assistir na TV. Música também.
+
+> ⚠️ **Testado só com o Jellyfin.** Toda a automação (bibliotecas, avisos de download novo, login no Seerr) foi feita e testada com o **Jellyfin**. Plex e Emby **não foram testados** e não são configurados pelo instalador.
 
 Não precisa saber Docker nem configurar nada à mão: o instalador faz as perguntas em português e liga todos os programas entre si.
 
@@ -50,8 +52,8 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 Abra o terminal do computador (ou entre por SSH) e copie os comandos abaixo:
 
 ```bash
-git clone https://github.com/nutersamsu/arr-dublado-ptbr.git
-cd arr-dublado-ptbr
+git clone https://github.com/nutersamsu/projeto-de-automacao-de-gerenciamento-de-download-de-media-e-gerenciamento-automatizado.git
+cd projeto-de-automacao-de-gerenciamento-de-download-de-media-e-gerenciamento-automatizado
 sudo ./instalar.sh
 ```
 
@@ -175,7 +177,7 @@ Mudou de ideia sobre alguma resposta? É só rodar `sudo ./instalar.sh` de novo.
 ### Onde fica cada coisa
 
 ```
-arr-dublado-ptbr/          (esta pasta)
+(pasta do projeto)        (onde você rodou o instalador)
 ├── .env                   suas respostas e a senha (não compartilhe)
 └── config/                configurações e bancos de dados de cada programa
 

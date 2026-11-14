@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Instalador do arr-dublado-ptbr. Uso:   sudo ./instalar.sh
+# Instalador do Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado.
+# Testado SOMENTE com o Jellyfin (Plex/Emby não foram testados). Uso:   sudo ./instalar.sh
 # Pode rodar de novo quando quiser (para mudar respostas ou consertar algo): nada é apagado.
 # Modo sem perguntas (avançado): sudo ./instalar.sh --automatico   (usa o .env existente ou os padrões)
 set -euo pipefail
@@ -50,14 +51,16 @@ clear 2>/dev/null || true
 cat <<EOF
 ${N}${C}
    ╔═══════════════════════════════════════════════════════╗
-   ║   arr-dublado-ptbr — filmes, séries e música no       ║
-   ║   automático, só versões DUBLADAS em português        ║
+   ║   Automação de download e gerenciamento de mídia      ║
+   ║   filmes, séries e música só DUBLADOS em português    ║
    ╚═══════════════════════════════════════════════════════╝${F}
 
   Vai instalar: Jellyfin (assistir), Seerr (pedir), Radarr (filmes),
   Sonarr (séries), Lidarr (música), Prowlarr (fontes), qBittorrent
   (downloads), FlareSolverr e, se você quiser, o Tailscale para
   assistir fora de casa.
+
+  Obs.: testado somente com o Jellyfin.
 
   Responda as perguntas; o valor entre [colchetes] é o padrão (só aperte Enter).
 EOF

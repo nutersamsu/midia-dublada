@@ -1,4 +1,6 @@
-# arr-dublado-ptbr — pilha completa de mídia com filtro de dublado PT-BR.
+# Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado
+# Pilha completa de mídia com filtro de dublado PT-BR.
+# ATENÇÃO: testado SOMENTE com o Jellyfin (Plex/Emby não foram testados).
 #
 # NÃO edite este arquivo para mudar pastas, portas ou senhas: tudo isso fica no .env,
 # que o ./instalar.sh cria. O qBittorrent fica em compose/qbittorrent.yml (sem VPN) ou

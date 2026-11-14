@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Configura sozinho todos os apps da pilha arr-dublado-ptbr, pela API de cada um.
+"""Configura sozinho todos os apps do Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado,
+pela API de cada um. Testado SOMENTE com o Jellyfin (Plex/Emby não foram testados).
 
 Roda dentro de um container (docker compose run --rm configurador ...), chamado pelo instalar.sh:
   preparar    antes de subir os apps: cria as pastas e a senha do qBittorrent
