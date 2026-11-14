@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instalador do Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado.
+# Instalador do Mídia Dublada.
 # Testado SOMENTE com o Jellyfin (Plex/Emby não foram testados). Uso:   sudo ./instalar.sh
 # Pode rodar de novo quando quiser (para mudar respostas ou consertar algo): nada é apagado.
 # Modo sem perguntas (avançado): sudo ./instalar.sh --automatico   (usa o .env existente ou os padrões)
@@ -51,7 +51,7 @@ clear 2>/dev/null || true
 cat <<EOF
 ${N}${C}
    ╔═══════════════════════════════════════════════════════╗
-   ║   Automação de download e gerenciamento de mídia      ║
+   ║   Mídia Dublada — download e gestão automáticos       ║
    ║   filmes, séries e música só DUBLADOS em português    ║
    ╚═══════════════════════════════════════════════════════╝${F}
 

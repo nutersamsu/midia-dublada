@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configura sozinho todos os apps do Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado,
+"""Configura sozinho todos os apps do Mídia Dublada,
 pela API de cada um. Testado SOMENTE com o Jellyfin (Plex/Emby não foram testados).
 
 Roda dentro de um container (docker compose run --rm configurador ...), chamado pelo instalar.sh:

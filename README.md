@@ -1,4 +1,6 @@
-# 🇧🇷 Projeto de automação de gerenciamento de download de mídia e gerenciamento automatizado
+# 🇧🇷 Mídia Dublada
+
+**Automação de download e gerenciamento de mídia, só versões dubladas em português.**
 
 **Sua própria "Netflix" em casa, só com versões dubladas em português, montada por um único instalador.**
 
@@ -52,8 +54,8 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 Abra o terminal do computador (ou entre por SSH) e copie os comandos abaixo:
 
 ```bash
-git clone https://github.com/nutersamsu/projeto-de-automacao-de-gerenciamento-de-download-de-media-e-gerenciamento-automatizado.git
-cd projeto-de-automacao-de-gerenciamento-de-download-de-media-e-gerenciamento-automatizado
+git clone https://github.com/nutersamsu/midia-dublada.git
+cd midia-dublada
 sudo ./instalar.sh
 ```
 
