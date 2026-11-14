@@ -1,10 +1,12 @@
 # 🇧🇷 Mídia Dublada
 
-**Automação de download e gerenciamento de mídia, só versões dubladas em português.**
+**Automação de download e gerenciamento de mídia, dublada ou legendada em português.**
 
-**Sua própria "Netflix" em casa, só com versões dubladas em português, montada por um único instalador.**
+**Sua própria "Netflix" em casa, montada por um único instalador.**
 
-Você pede um filme ou uma série pelo celular, ele é procurado e baixado sozinho (só versão **dublada PT-BR**), organizado com nome e capa em português e aparece pronto para assistir na TV. Música também.
+Você pede um filme ou uma série pelo celular, ele é procurado e baixado sozinho do jeito que você escolheu (**só dublado**, **dublado ou legendado**, ou **áudio original com legenda em português**) e **na qualidade que você quer** (720p, 1080p ou 4K). O filme é organizado com nome e capa em português e aparece pronto para assistir na TV. Música também.
+
+<p align="center"><img src="docs/telas/jellyfin-inicio.webp" width="80%" alt="Tela inicial do Jellyfin com filmes e séries"></p>
 
 > ⚠️ **Testado só com o Jellyfin.** Toda a automação (bibliotecas, avisos de download novo, login no Seerr) foi feita e testada com o **Jellyfin**. Plex e Emby **não foram testados** e não são configurados pelo instalador.
 
@@ -13,7 +15,7 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 ```
   Você pede no          procura só          baixa             organiza e          você assiste
   📱 Seerr      ───▶   🔎 Radarr/Sonarr ───▶ ⬇ qBittorrent ───▶ 📁 renomeia em PT ───▶ 📺 Jellyfin
-                        (filtro dublado)                                     🌍 fora de casa: Tailscale
+                     (filtro de idioma)                    💬 Bazarr (legendas)   🌍 fora de casa: Tailscale
 ```
 
 | Programa | Para que serve |
@@ -23,6 +25,7 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 | **Radarr** / **Sonarr** / **Lidarr** | Procuram e organizam filmes / séries / música |
 | **Prowlarr** | Guarda as fontes de busca (indexadores) e repassa para os outros |
 | **qBittorrent** | Faz os downloads |
+| **Bazarr** (se escolher legendado) | Baixa legendas em português sozinho |
 | **FlareSolverr** | Ajuda com fontes protegidas pelo Cloudflare |
 | **Tailscale** (opcional) | Acesso fora de casa, sem abrir portas no roteador |
 
@@ -30,9 +33,11 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 
 ## ✨ O que já vem configurado
 
-- **Filtro de dublado PT-BR** no Radarr e no Sonarr, testado na prática (veja [como funciona](#-como-o-filtro-de-dublado-funciona)).
+- **Filtro de idioma** no Radarr e no Sonarr, testado na prática: só dublado, dublado ou legendado, ou legendado (veja [como funciona](#-como-o-filtro-de-idioma-funciona)).
+- **Qualidade à sua escolha**: até 720p, até 1080p ou até 4K.
 - Nomes de pastas e arquivos **em português** (`Batman - O Cavaleiro das Trevas (2008)`), interfaces em português.
-- Jellyfin com bibliotecas **Filmes, Séries e Música** criadas, informações em português e **áudio em português como preferido**.
+- Jellyfin com bibliotecas **Filmes, Séries e Música** criadas e informações em português. O áudio em português é o preferido; no modo legendado, toca o áudio original com legenda em português.
+- No modo com legenda, o **Bazarr** já vem ligado ao Radarr e ao Sonarr, buscando legendas PT-BR.
 - Seerr ligado ao Jellyfin, ao Radarr e ao Sonarr: dá para entrar com o mesmo usuário do Jellyfin.
 - Cada download novo **avisa o Jellyfin**, que o mostra em poucos segundos.
 - qBittorrent com pastas e categorias prontas; **não baixa `.exe`, `.bat` e afins**, comuns em torrent falso.
@@ -66,17 +71,30 @@ O instalador pergunta:
 1. **Onde guardar os arquivos.** Ele mostra os discos e o espaço livre de cada um.
 2. **Usuário e senha.** São os mesmos para todos os painéis; se você deixar a senha em branco, ele gera uma.
 3. **Se quer o Tailscale**, para assistir fora de casa ([saiba mais](#-fora-de-casa-tailscale)).
-4. **Se quer compartilhar** um pouco depois de baixar.
+4. **Idioma:** só dublado, dublado ou legendado, ou áudio original com legenda.
+5. **Qualidade máxima:** 720p, 1080p ou 4K.
+6. **Se quer compartilhar** um pouco depois de baixar.
 
 Depois ele baixa os programas (cerca de 3 GB na primeira vez), configura tudo e mostra os endereços:
 
-```
-  Assistir (Jellyfin) ......... http://192.168.1.50:8096
-  Pedir filmes e séries (Seerr)  http://192.168.1.50:5055
-  ...
-```
+<p align="center"><img src="docs/telas/instalador.webp" width="70%" alt="Instalador em português, do início ao fim"></p>
 
 Os endereços também ficam salvos em `LEIA-ME-INSTALACAO.txt`.
+
+## 📸 Como é cada programa
+
+> Telas reais de uma instalação feita por este instalador. Os títulos são filmes livres da Blender Foundation, usados só como exemplo.
+
+| | |
+|---|---|
+| **Seerr: onde a família pede**<br><img src="docs/telas/seerr-inicio.webp" alt="Seerr"> | **Seerr: página do filme, em português**<br><img src="docs/telas/seerr-filme.webp" alt="Seerr filme"> |
+| **Jellyfin: onde você assiste**<br><img src="docs/telas/jellyfin-inicio.webp" alt="Jellyfin"> | **Jellyfin: áudio em português, sinopse em português**<br><img src="docs/telas/jellyfin-filme.webp" alt="Jellyfin filme"> |
+| **Radarr: filmes** (verde = baixado, vermelho = falta)<br><img src="docs/telas/radarr-filmes.webp" alt="Radarr"> | **Radarr: o perfil criado pelo instalador**<br><img src="docs/telas/radarr-perfil.webp" alt="Perfil do Radarr"> |
+| **Sonarr: séries**<br><img src="docs/telas/sonarr-series.webp" alt="Sonarr"> | **Lidarr: música**<br><img src="docs/telas/lidarr-artistas.webp" alt="Lidarr"> |
+| **Prowlarr: onde você adiciona as fontes**<br><img src="docs/telas/prowlarr-adicionar.webp" alt="Prowlarr"> | **Bazarr: legendas PT-BR** (só nos modos com legenda)<br><img src="docs/telas/bazarr-filmes.webp" alt="Bazarr"> |
+| **qBittorrent: os downloads, com categorias prontas**<br><img src="docs/telas/qbittorrent.webp" alt="qBittorrent"> | |
+
+Quase tudo aparece em português. O Bazarr ainda não tem tradução e fica em inglês.
 
 ## 👣 Primeiro uso (só 1 passo manual)
 
@@ -99,30 +117,37 @@ Quando terminar de baixar, o filme aparece no **Jellyfin** (`http://SEU-IP:8096`
 ### Família
 Crie um usuário para cada pessoa no **Jellyfin › Painel › Usuários**. Com esse mesmo usuário, a pessoa já consegue pedir no Seerr. Os pedidos de quem não é administrador precisam da sua aprovação no Seerr; para aprovar automaticamente, use **Seerr › Configurações › Usuários › Permissões padrão › Aprovar automaticamente**.
 
-## 🎯 Como o filtro de dublado funciona
+## 🎯 Como o filtro de idioma funciona
 
-Cada versão encontrada ganha pontos. **Só baixa com 100 pontos ou mais.**
+Cada versão encontrada ganha pontos conforme o **modo de idioma** que você escolheu. Ela só é baixada se atingir o mínimo.
 
-| Regra | Pontos | Exemplo no nome |
-|---|---:|---|
-| Idioma detectado como Português | +100 | (o Radarr/Sonarr detecta) |
-| Dublado no nome | +100 | `Dublado`, `Nacional`, `PT-BR`, `BR-DUB`, `Português` |
-| DUAL áudio | +10 | `DUAL` |
-| Legendado / legenda fixa | −1000 | `Legendado`, `LEG`, `HC`, `Hardsub` |
-| Outro idioma no nome | −1000 | `Hindi`, `Latino`, `Spanish`, `French`, `ITA`... |
+| Regra | Exemplo no nome | Só dublado | Dublado ou legendado | Legendado |
+|---|---|---:|---:|---:|
+| Idioma detectado como Português | (o Radarr/Sonarr detecta) | +100 | +100 | 0 |
+| Dublado no nome | `Dublado`, `Nacional`, `PT-BR`, `Português` | +100 | +100 | −40 |
+| DUAL áudio (original + português) | `DUAL` | +10 | +10 | +50 |
+| Legendado no nome | `Legendado`, `LEG` | −1000 | +50 | +100 |
+| Legenda fixa na imagem | `HC`, `Hardsub` | −1000 | −20 | −20 |
+| Outro idioma no nome | `Hindi`, `Latino`, `Spanish`, `ITA`... | −1000 | −1000 | −1000 |
+| **Mínimo para baixar** | | **100** | **30** | **0** |
 
-Exemplos reais:
+O que acontece com cada versão:
 
-| Nome da versão | Pontos | Resultado |
-|---|---:|---|
-| `Filme.2023.1080p.WEB-DL.DUAL.5.1` | 10 | ❌ só "DUAL" não garante português |
-| `Filme.2023.1080p.WEB-DL.DUAL.PT-BR` | 110 | ✅ |
-| `Filme 2023 1080p BluRay Dublado` | 200 | ✅ |
-| `Filme.2023.1080p.Dual.Audio.Hindi.English` | −990 | ❌ |
-| `Filme.2023.720p.Legendado` | −1000 | ❌ |
+| Nome da versão | Só dublado | Dublado ou legendado | Legendado |
+|---|:---:|:---:|:---:|
+| `Filme 2023 1080p BluRay Dublado` | ✅ | ✅ | ❌ sem áudio original |
+| `Filme.2023.1080p.WEB-DL.DUAL.PT-BR` | ✅ | ✅ | ✅ |
+| `Filme.2023.1080p.Legendado` | ❌ | ✅ | ✅ |
+| `Filme.2023.1080p.WEB-DL.DUAL` | ❌ só "DUAL" não garante português | ❌ | ✅ |
+| `Filme.2023.1080p.WEB-DL` (original) | ❌ | ❌ | ✅ o Bazarr põe a legenda |
+| `Filme.2023.1080p.Hindi.English` | ❌ | ❌ | ❌ |
 
-Qualidade: aceita de SD a 1080p (sem 4K, que ocupa muito espaço) e troca por uma versão melhor até chegar em 1080p.
-Para mudar as regras, edite [`configurador/formatos-ptbr.json`](configurador/formatos-ptbr.json) e rode `sudo ./gerenciar.sh reconfigurar`.
+**Qualidade:** aceita de SD até o máximo escolhido (720p, 1080p ou 4K) e troca por uma versão melhor até chegar nele. Versões Remux, que são gigantes, ficam de fora.
+
+**Para mudar depois:** rode `sudo ./instalar.sh` de novo e escolha outra opção, ou edite `IDIOMA=` e `QUALIDADE=` no `.env` e rode `sudo ./gerenciar.sh reconfigurar`. Para ajustar as regras finas, edite [`configurador/formatos-ptbr.json`](configurador/formatos-ptbr.json).
+
+### Legendas (Bazarr)
+Nos modos com legenda, o Bazarr procura legenda em português (Brasil) para tudo o que chega sem áudio em português, usando fontes que não pedem cadastro. Para achar **muito mais** legendas, crie uma conta grátis no [OpenSubtitles.com](https://www.opensubtitles.com) e coloque o usuário e a senha no **Bazarr › Settings › Providers › OpenSubtitles.com**.
 
 ## 🔧 Manutenção automática
 

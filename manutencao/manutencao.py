@@ -29,7 +29,6 @@ INTERVALO = 300
 INTERVALO_LIDARR = 600
 BLOQUEIO = "matched to movie by ID"
 VIDEO = (".mkv", ".mp4", ".avi", ".m4v")
-PERFIL = "🇧🇷 PT-BR (prefere 1080p)"
 ESPERA_CADASTRO = 180    # s depois de concluir, para o app ter a chance de importar sozinho
 JANELA_LOOP_H = 48
 FILMES, SERIES = "/data/midia/filmes", "/data/midia/series"
@@ -89,7 +88,8 @@ def sonarr(c, corpo=None):
 
 
 def perfil_id(app):
-    return next((p["id"] for p in arr(app, "qualityprofile") if p["name"] == PERFIL), 1)
+    """O perfil criado pelo instalador começa com 🇧🇷 (ex.: "🇧🇷 Dublado (até 1080p)")."""
+    return next((p["id"] for p in arr(app, "qualityprofile") if p["name"].startswith("🇧🇷")), 1)
 
 
 def normal(txt):

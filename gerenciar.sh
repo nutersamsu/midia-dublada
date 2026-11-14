@@ -26,7 +26,7 @@ reconfigurar() {
 }
 logs() {
   local s=${1:-}
-  if [[ -z $s ]]; then read -rp "Qual app (radarr, sonarr, lidarr, prowlarr, qbittorrent, jellyfin, seerr, manutencao, gluetun)? " s; fi
+  if [[ -z $s ]]; then read -rp "Qual app (radarr, sonarr, lidarr, prowlarr, qbittorrent, bazarr, jellyfin, seerr, manutencao, gluetun)? " s; fi
   docker compose logs --tail 200 -f "$s"
 }
 backup() {

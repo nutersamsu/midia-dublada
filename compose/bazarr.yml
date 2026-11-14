@@ -1,0 +1,18 @@
+# Bazarr: baixa legendas em português (PT-BR) para filmes e séries.
+# Entra quando o modo de idioma é "ambos" ou "legendado" (IDIOMA no .env).
+services:
+  bazarr:
+    restart: unless-stopped
+    image: lscr.io/linuxserver/bazarr:latest
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      UMASK: "002"
+      TZ: ${TZ}
+    volumes:
+      - ./config/bazarr:/config
+      - ${PASTA_DADOS}:/data
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_BAZARR:-6767}:6767"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

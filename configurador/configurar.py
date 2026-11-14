@@ -28,7 +28,16 @@ PASTAS = ["downloads/incompletos", "downloads/radarr", "downloads/sonarr", "down
 FILMES, SERIES, MUSICA = "/data/midia/filmes", "/data/midia/series", "/data/midia/musica"
 NOME_CHAVE_JELLYFIN = "arr-dublado"
 REGRAS = json.load(open(os.path.join(AQUI, "formatos-ptbr.json"), encoding="utf-8"))
-PERFIL = REGRAS["perfil"]["nome"]
+IDIOMA = ENV.get("IDIOMA", "dublado").lower()          # dublado | ambos | legendado
+QUALIDADE = ENV.get("QUALIDADE", "1080p").lower()      # 720p | 1080p | 4k
+if IDIOMA not in REGRAS["modos"]:
+    raise SystemExit(f"✖ IDIOMA={IDIOMA!r} no .env não existe. Use: {', '.join(REGRAS['modos'])}")
+if QUALIDADE not in REGRAS["qualidades"]:
+    raise SystemExit(f"✖ QUALIDADE={QUALIDADE!r} no .env não existe. Use: {', '.join(REGRAS['qualidades'])}")
+MODO = REGRAS["modos"][IDIOMA]
+QUAL = REGRAS["qualidades"][QUALIDADE]
+PERFIL = f"🇧🇷 {MODO['rotulo']} (até {QUALIDADE.upper() if QUALIDADE == '4k' else QUALIDADE})"
+COM_LEGENDAS = IDIOMA != "dublado"
 
 avisos = []
 
@@ -277,9 +286,13 @@ def idioma_ptbr(app):
 
 def interface_ptbr(app, extra=None):
     cfg = app.get("config/ui")
-    lid = idioma_ptbr(app)
-    if lid and "uiLanguage" in cfg:
-        cfg["uiLanguage"] = lid
+    if isinstance(cfg.get("uiLanguage"), str):  # Prowlarr usa código de texto ("en")
+        cfg["uiLanguage"] = "pt_BR"
+        lid = None
+    else:
+        lid = idioma_ptbr(app)
+        if lid and "uiLanguage" in cfg:
+            cfg["uiLanguage"] = lid
     for k, v in (extra or {}).items():
         if k in cfg:
             cfg[k] = lid if v == "ptbr" else v
@@ -310,9 +323,12 @@ def cliente_qbit(app, categoria):
 
 
 def formatos_ptbr(app):
-    """Custom formats do filtro de dublado + perfil de qualidade."""
+    """Custom formats do filtro de idioma + perfil de qualidade (conforme IDIOMA e QUALIDADE do .env)."""
     idiomas = {l["name"]: l["id"] for l in app.get("language")}
     atuais = {c["name"]: c for c in app.get("customformat")}
+    for velho in REGRAS.get("formatos_antigos", []):
+        if velho in atuais:
+            app.pedir("DELETE", f"customformat/{atuais[velho]['id']}")
     for f in REGRAS["formatos"]:
         specs = []
         for nome_idioma in f.get("idiomas", []):
@@ -326,32 +342,34 @@ def formatos_ptbr(app):
                           "required": False, "fields": [{"name": "value", "value": f["regex"]}]})
         salvar(app, "customformat", {"name": f["nome"], "includeCustomFormatWhenRenaming": False,
                                      "specifications": specs}, atuais.get(f["nome"]))
-    ok(f"{len(REGRAS['formatos'])} regras de dublado PT-BR")
+    ok(f"{len(REGRAS['formatos'])} regras de idioma (modo: {MODO['rotulo'].lower()})")
 
-    pontos = {f["nome"]: f["pontos"] for f in REGRAS["formatos"]}
-    perfis = {p["name"]: p for p in app.get("qualityprofile")}
-    perfil = perfis.get(PERFIL) or app.get("qualityprofile/schema")
-    queridas = set(REGRAS["perfil"]["qualidades"])
+    pontos = {f["nome"]: f["pontos"][IDIOMA] for f in REGRAS["formatos"]}
+    perfis = app.get("qualityprofile")
+    # o perfil criado por nós começa com 🇧🇷 (o nome muda se você trocar idioma/qualidade)
+    existente = next((p for p in perfis if p["name"] == PERFIL), None) or \
+        next((p for p in perfis if p["name"].startswith("🇧🇷")), None)
+    perfil = existente or app.get("qualityprofile/schema")
+    queridas = set(QUAL["lista"])
     alvo = None
     for it in perfil["items"]:
         nome = it["quality"]["name"] if it.get("quality") else it.get("name")
         it["allowed"] = nome in queridas
         for sub in it.get("items", []):
             sub["allowed"] = it["allowed"]
-        if it.get("quality") and nome == REGRAS["perfil"]["qualidade_alvo"]:
+        if it.get("quality") and nome == QUAL["alvo"]:
             alvo = it["quality"]["id"]
         for sub in it.get("items", []):
-            if sub.get("quality", {}).get("name") == REGRAS["perfil"]["qualidade_alvo"]:
+            if sub.get("quality", {}).get("name") == QUAL["alvo"]:
                 alvo = it.get("id") or sub["quality"]["id"]
     ids_formatos = {c["name"]: c["id"] for c in app.get("customformat")}
     perfil["formatItems"] = [{"format": cid, "name": n, "score": pontos.get(n, 0)} for n, cid in ids_formatos.items()]
-    perfil.update(name=PERFIL, upgradeAllowed=True, cutoff=alvo,
-                  minFormatScore=REGRAS["perfil"]["minimo"],
-                  cutoffFormatScore=REGRAS["perfil"]["pontuacao_para_parar"], minUpgradeFormatScore=1)
+    perfil.update(name=PERFIL, upgradeAllowed=True, cutoff=alvo, minFormatScore=MODO["minimo"],
+                  cutoffFormatScore=MODO["parar"], minUpgradeFormatScore=1)
     if "language" in perfil:  # Radarr: o perfil não pode filtrar idioma (senão só aceita inglês)
         perfil["language"] = next((l for l in app.get("language") if l["id"] == -1), {"id": -1, "name": "Any"})
-    salvar(app, "qualityprofile", perfil, perfis.get(PERFIL))
-    ok(f"perfil {PERFIL!r} (mínimo {REGRAS['perfil']['minimo']} pontos)")
+    salvar(app, "qualityprofile", perfil, existente)
+    ok(f"perfil {PERFIL!r} (mínimo {MODO['minimo']} pontos)")
     return next(p["id"] for p in app.get("qualityprofile") if p["name"] == PERFIL)
 
 
@@ -450,10 +468,7 @@ def prowlarr(apps):
     etapa("Prowlarr (indexadores)")
     app = Arr("prowlarr", 9696, "v1")
     login_painel(app)
-    try:
-        interface_ptbr(app)
-    except ErroHTTP:
-        pass
+    interface_ptbr(app)
     atuais = {a["implementation"]: a for a in app.get("applications")}
     for alvo in apps:
         impl = alvo.nome.capitalize()
@@ -503,6 +518,13 @@ def jellyfin():
     jf.cab["Authorization"] = JF_AUT + f', Token="{sessao["AccessToken"]}"'
     uid = sessao["User"]["Id"]
 
+    cfg_srv = jf.get("System/Configuration")
+    if cfg_srv.get("ServerName") != "Mídia Dublada":
+        cfg_srv.update(ServerName="Mídia Dublada", UICulture="pt-BR", MetadataCountryCode="BR",
+                       PreferredMetadataLanguage="pt")
+        jf.post("System/Configuration", cfg_srv)
+    ok("servidor chamado \"Mídia Dublada\"")
+
     existentes = {b["Name"]: b for b in jf.get("Library/VirtualFolders")}
     caminhos = {p for b in existentes.values() for p in b.get("Locations", [])}
     for nome, tipo, caminho in (("Filmes", "movies", FILMES), ("Séries", "tvshows", SERIES), ("Música", "music", MUSICA)):
@@ -517,13 +539,17 @@ def jellyfin():
 
     usuario = jf.get(f"Users/{uid}")
     cfg = usuario["Configuration"]
-    cfg.update(AudioLanguagePreference="por", PlayDefaultAudioTrack=False,
-               SubtitleLanguagePreference="por", SubtitleMode="Smart")
+    if IDIOMA == "legendado":  # áudio original + legenda em português sempre
+        cfg.update(AudioLanguagePreference="", PlayDefaultAudioTrack=True,
+                   SubtitleLanguagePreference="por", SubtitleMode="Always")
+    else:  # áudio em português; legenda só quando o áudio não for português
+        cfg.update(AudioLanguagePreference="por", PlayDefaultAudioTrack=False,
+                   SubtitleLanguagePreference="por", SubtitleMode="Smart")
     try:
         jf.post(f"Users/Configuration?userId={uid}", cfg)
     except ErroHTTP:
         jf.post(f"Users/{uid}/Configuration", cfg)
-    ok("áudio preferido: português")
+    ok("áudio original com legenda em português" if IDIOMA == "legendado" else "áudio preferido: português")
 
     def chave():
         for k in (jf.get("Auth/Keys") or {}).get("Items", []):
@@ -553,6 +579,57 @@ def avisar_jellyfin(app, token):
     existente = next((n for n in app.get("notification") if n["implementation"] == "MediaBrowser"), None)
     salvar(app, "notification", item, existente)
     ok(f"{app.nome.capitalize()} avisa o Jellyfin quando chega arquivo novo")
+
+
+# ---------------------------------------------------------------- Bazarr
+PROVEDORES_LEGENDA = ["embeddedsubtitles", "yifysubtitles", "subf2m", "podnapisi"]
+
+
+def chave_bazarr():
+    caminho = os.path.join(CONFIGS, "bazarr", "config", "config.yaml")
+    def ler():
+        if not os.path.exists(caminho):
+            return None
+        secao = None
+        for linha in open(caminho, encoding="utf-8"):
+            if linha and not linha[0].isspace() and linha.rstrip().endswith(":"):
+                secao = linha.strip()[:-1]
+            elif secao == "auth" and linha.strip().startswith("apikey:"):
+                valor = linha.split(":", 1)[1].strip().strip("'\"")
+                return valor or None
+    return esperar("bazarr", ler)
+
+
+def bazarr(rad, son):
+    etapa("Bazarr (legendas em português)")
+    bz = Cliente("http://bazarr:6767/api", {"X-API-KEY": chave_bazarr()})
+    esperar("bazarr", lambda: bz.get("system/status"))
+    perfil = {"profileId": 1, "name": "Português (Brasil)", "cutoff": None, "mustContain": [], "mustNotContain": [],
+              "originalFormat": False, "tag": None,
+              # audio_exclude: se o áudio já é português (dublado), não baixa legenda
+              "items": [{"id": 1, "language": "pb", "audio_exclude": "True", "audio_only_include": "False",
+                         "hi": "False", "forced": "False"}]}
+    form = [
+        ("languages-enabled", "pb"),
+        ("languages-profiles", json.dumps([perfil])),
+        ("settings-general-use_radarr", "true"), ("settings-general-use_sonarr", "true"),
+        ("settings-general-movie_default_enabled", "true"), ("settings-general-movie_default_profile", "1"),
+        ("settings-general-serie_default_enabled", "true"), ("settings-general-serie_default_profile", "1"),
+        ("settings-radarr-ip", "radarr"), ("settings-radarr-port", "7878"), ("settings-radarr-base_url", "/"),
+        ("settings-radarr-apikey", rad.chave),
+        ("settings-sonarr-ip", "sonarr"), ("settings-sonarr-port", "8989"), ("settings-sonarr-base_url", "/"),
+        ("settings-sonarr-apikey", son.chave),
+        ("settings-auth-type", "form"), ("settings-auth-username", USUARIO), ("settings-auth-password", SENHA),
+    ] + [("settings-general-enabled_providers", p) for p in PROVEDORES_LEGENDA]
+    bz.pedir("POST", "system/settings", formulario=form)
+    for tarefa in ("update_series", "update_movies"):  # já puxa o que existe no Radarr/Sonarr
+        try:
+            bz.pedir("POST", "system/tasks", formulario={"taskid": tarefa})
+        except ErroHTTP:
+            pass
+    ok("ligado ao Radarr e ao Sonarr; baixa legenda PT-BR quando o áudio não é português")
+    ok("fontes de legenda sem cadastro: " + ", ".join(PROVEDORES_LEGENDA))
+    ok("login do painel criado")
 
 
 # ---------------------------------------------------------------- Seerr
@@ -631,6 +708,8 @@ def configurar():
             avisar_jellyfin(app, token)
         except ErroHTTP as e:
             aviso(f"{app.nome}: conexão com o Jellyfin falhou ({e})")
+    if COM_LEGENDAS:
+        bazarr(rad, son)
     seerr(rad, rad_perfil, son, son_perfil)
     print("\n✔ Configuração concluída." + (f" {len(avisos)} aviso(s) acima." if avisos else ""))
 

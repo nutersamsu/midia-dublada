@@ -29,6 +29,17 @@ sim_nao() {  # sim_nao "texto" s|n  -> retorna 0 se sim
   RESP=$(echo "${RESP:-$padrao}" | tr 'A-Z' 'a-z')
   [[ $RESP == s* || $RESP == y* ]]
 }
+escolha() {  # escolha "pergunta" padrão(1..n) "opção 1" "opção 2" ...  -> número em $RESP
+  local texto=$1 padrao=$2 i=1; shift 2
+  info "$texto"
+  for o in "$@"; do info "  ${N}$i)${F} $o"; i=$((i+1)); done
+  if (( AUTO )); then RESP=$padrao; return; fi
+  while :; do
+    read -rp "  Número [$padrao]: " RESP || true; RESP=${RESP:-$padrao}
+    [[ $RESP =~ ^[0-9]+$ ]] && (( RESP >= 1 && RESP <= $# )) && return
+    alerta "Digite um número de 1 a $#."
+  done
+}
 senha_secreta() {
   if (( AUTO )); then RESP=${SENHA:-}; return; fi
   local s1 s2
@@ -52,7 +63,7 @@ cat <<EOF
 ${N}${C}
    ╔═══════════════════════════════════════════════════════╗
    ║   Mídia Dublada — download e gestão automáticos       ║
-   ║   filmes, séries e música só DUBLADOS em português    ║
+   ║   filmes, séries e música, dublados ou legendados     ║
    ╚═══════════════════════════════════════════════════════╝${F}
 
   Vai instalar: Jellyfin (assistir), Seerr (pedir), Radarr (filmes),
@@ -146,6 +157,21 @@ fi
 
 # ------------------------------------------------------------ preferências
 titulo "5/6 Preferências"
+case ${IDIOMA:-dublado} in ambos) P=2 ;; legendado) P=3 ;; *) P=1 ;; esac
+escolha "Idioma dos filmes e séries:" $P \
+  "Só DUBLADO em português (recusa o que não for dublado)" \
+  "Dublado de preferência; se não tiver, LEGENDADO em português" \
+  "Áudio ORIGINAL com LEGENDA em português (prefere legendado)"
+IDIOMA=$(case $RESP in 2) echo ambos ;; 3) echo legendado ;; *) echo dublado ;; esac)
+[[ $IDIOMA != dublado ]] && info "→ vai instalar também o ${N}Bazarr${F}, que baixa as legendas em português sozinho."
+echo
+case ${QUALIDADE:-1080p} in 720p) P=1 ;; 4k) P=3 ;; *) P=2 ;; esac
+escolha "Qualidade máxima (quanto maior, mais espaço em disco e internet):" $P \
+  "Até 720p  (HD — filme de ~1 a 2 GB; bom para celular e TV pequena)" \
+  "Até 1080p (Full HD — ~2 a 5 GB; recomendado)" \
+  "Até 4K    (~10 a 25 GB por filme; só se a TV e a internet forem 4K)"
+QUALIDADE=$(case $RESP in 1) echo 720p ;; 3) echo 4k ;; *) echo 1080p ;; esac)
+echo
 info "Compartilhar (semear) depois de baixar ajuda a rede de torrents e é exigido em"
 info "sites privados. Não compartilhar economiza internet."
 SEMEAR_PADRAO=s; [[ ${SEMEAR:-sim} == nao ]] && SEMEAR_PADRAO=n
@@ -175,13 +201,14 @@ escolher_porta() {  # escolher_porta VAR padrão
 }
 escolher_porta PORTA_JELLYFIN 8096; escolher_porta PORTA_SEERR 5055; escolher_porta PORTA_RADARR 7878
 escolher_porta PORTA_SONARR 8989;   escolher_porta PORTA_LIDARR 8686; escolher_porta PORTA_PROWLARR 9696
-escolher_porta PORTA_QBITTORRENT 8080; escolher_porta PORTA_TORRENT 6881
+escolher_porta PORTA_BAZARR 6767; escolher_porta PORTA_QBITTORRENT 8080; escolher_porta PORTA_TORRENT 6881
 ok "Portas escolhidas"
 
 COMPOSE_FILE="docker-compose.yml:compose/qbittorrent.yml"
 (( USAR_VPN )) && COMPOSE_FILE="docker-compose.yml:compose/qbittorrent-vpn.yml"
 (( GPU )) && COMPOSE_FILE+=":compose/jellyfin-gpu.yml"
 (( USAR_TS )) && COMPOSE_FILE+=":compose/tailscale.yml"
+[[ $IDIOMA != dublado ]] && COMPOSE_FILE+=":compose/bazarr.yml"
 
 # ------------------------------------------------------------ .env
 umask 077
@@ -200,6 +227,11 @@ TZ=$TZ
 # Login de todos os painéis (Jellyfin, Seerr, Radarr, Sonarr, Lidarr, Prowlarr, qBittorrent)
 USUARIO=$USUARIO
 SENHA='$SENHA'
+
+# Idioma: dublado | ambos (dublado ou legendado) | legendado (áudio original + legenda)
+IDIOMA=$IDIOMA
+# Qualidade máxima: 720p | 1080p | 4k
+QUALIDADE=$QUALIDADE
 
 # Compartilhar depois de baixar (sim/nao), até este ratio ou número de dias
 SEMEAR=$SEMEAR
@@ -221,6 +253,7 @@ PORTA_SONARR=$PORTA_SONARR
 PORTA_LIDARR=$PORTA_LIDARR
 PORTA_PROWLARR=$PORTA_PROWLARR
 PORTA_QBITTORRENT=$PORTA_QBITTORRENT
+PORTA_BAZARR=$PORTA_BAZARR
 PORTA_TORRENT=$PORTA_TORRENT
 
 # Placa de vídeo (grupos do sistema)
@@ -313,6 +346,7 @@ ${N}${V}══════════════════  TUDO PRONTO!  �
     Lidarr (música) ............. $U:$PORTA_LIDARR
     Prowlarr (fontes) ........... $U:$PORTA_PROWLARR
     qBittorrent (downloads) ..... $U:$PORTA_QBITTORRENT
+$( [[ $IDIOMA != dublado ]] && echo "    Bazarr (legendas) ........... $U:$PORTA_BAZARR" )
 ${IP_TS:+
   ${N}Fora de casa (com o app Tailscale ligado no celular/PC)${F}
     Assistir (Jellyfin) ......... http://$IP_TS:$PORTA_JELLYFIN
