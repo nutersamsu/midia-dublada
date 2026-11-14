@@ -1,4 +1,4 @@
-# 🇧🇷 Mídia Dublada
+# Mídia Dublada
 
 **Automação de download e gerenciamento de mídia, dublada ou legendada em português.**
 
