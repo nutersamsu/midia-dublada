@@ -1,0 +1,7 @@
+# Entrega a placa de vídeo (Intel/AMD, /dev/dri) ao Jellyfin para converter vídeo sem pesar no processador.
+# Depois de instalar: Jellyfin > Painel > Reprodução > Transcodificação > Aceleração por hardware:
+# "Intel QuickSync (QSV)" para Intel ou "Video Acceleration API (VA-API)" para AMD.
+services:
+  jellyfin:
+    devices: ["/dev/dri:/dev/dri"]
+    group_add: ["${GRUPO_VIDEO:-44}", "${GRUPO_RENDER:-105}"]

@@ -1,0 +1,39 @@
+{
+  "_leia": "Regras do filtro de dublado (Radarr e Sonarr). Uma versão só é aceita com pontuação >= minimo. 'idiomas' usa o nome do idioma no Radarr/Sonarr; 'regex' confere o nome da versão. Mude aqui e rode ./gerenciar.sh reconfigurar.",
+  "perfil": {
+    "nome": "🇧🇷 PT-BR (prefere 1080p)",
+    "minimo": 100,
+    "pontuacao_para_parar": 110,
+    "qualidade_alvo": "Bluray-1080p",
+    "qualidades": ["SDTV", "DVD", "DVD-R", "WEB 480p", "Bluray-480p", "Bluray-576p",
+                   "HDTV-720p", "WEB 720p", "Bluray-720p",
+                   "HDTV-1080p", "WEB 1080p", "Bluray-1080p"]
+  },
+  "formatos": [
+    {
+      "nome": "🇧🇷 Idioma PT-BR",
+      "pontos": 100,
+      "idiomas": ["Portuguese (Brazil)", "Portuguese"]
+    },
+    {
+      "nome": "🇧🇷 Dublado no nome",
+      "pontos": 100,
+      "regex": "(?i)\\b(dublado|nacional|pt[ ._-]?br|br[ ._-]?dub|portugu[eê]s)\\b"
+    },
+    {
+      "nome": "DUAL áudio",
+      "pontos": 10,
+      "regex": "(?i)\\bdual\\b"
+    },
+    {
+      "nome": "🚫 Legendado / legenda fixa",
+      "pontos": -1000,
+      "regex": "(?i)\\b(legendado|leg|hc|hardsub|hardcoded|korsub)\\b"
+    },
+    {
+      "nome": "🚫 Outro idioma no nome",
+      "pontos": -1000,
+      "regex": "(?i)\\b(hindi|tamil|telugu|malayalam|kannada|bengali|latino|castellano|spanish|espa[nñ]ol|french|truefrench|vff?|vostfr|italian|ita|german|deutsch|russian|rus|ukr|ukrainian|polish|turkish|korean|japanese|chinese|arabic)\\b"
+    }
+  ]
+}

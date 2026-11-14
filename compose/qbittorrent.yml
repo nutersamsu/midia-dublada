@@ -1,0 +1,23 @@
+# qBittorrent SEM VPN: o tráfego dos torrents sai com o IP da sua internet.
+services:
+  qbittorrent:
+    restart: unless-stopped
+    image: lscr.io/linuxserver/qbittorrent:latest
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      UMASK: "002"
+      TZ: ${TZ}
+      # a porta de dentro TEM que ser igual à de fora (proteção do qBittorrent)
+      WEBUI_PORT: ${PORTA_QBITTORRENT:-8080}
+      TORRENTING_PORT: ${PORTA_TORRENT:-6881}
+    volumes:
+      - ./config/qbittorrent:/config
+      - ${PASTA_DADOS}:/data
+    ports:
+      - "${IP_PAINEIS:-0.0.0.0}:${PORTA_QBITTORRENT:-8080}:${PORTA_QBITTORRENT:-8080}"
+      - "${IP_TORRENT:-0.0.0.0}:${PORTA_TORRENT:-6881}:${PORTA_TORRENT:-6881}"
+      - "${IP_TORRENT:-0.0.0.0}:${PORTA_TORRENT:-6881}:${PORTA_TORRENT:-6881}/udp"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

@@ -1,0 +1,6 @@
+# dados da SUA instalação — nunca vão para o git
+.env
+config/
+LEIA-ME-INSTALACAO.txt
+backup-config-*.tar.gz
+__pycache__/

@@ -1,0 +1,124 @@
+# arr-dublado-ptbr — pilha completa de mídia com filtro de dublado PT-BR.
+#
+# NÃO edite este arquivo para mudar pastas, portas ou senhas: tudo isso fica no .env,
+# que o ./instalar.sh cria. O qBittorrent fica em compose/qbittorrent.yml (sem VPN) ou
+# compose/qbittorrent-vpn.yml (com VPN); a escolha também está no .env (COMPOSE_FILE).
+#
+# Pastas (dentro de PASTA_DADOS, igual em todos os containers, em /data):
+#   downloads/incompletos   torrents baixando
+#   downloads/radarr|sonarr|lidarr|manual   torrents concluídos, por categoria
+#   midia/filmes|series|musica   biblioteca organizada (o Jellyfin lê daqui)
+# Tudo no mesmo disco: o Radarr/Sonarr/Lidarr movem ou criam hardlink na hora, sem copiar.
+
+name: ${NOME_PROJETO:-arr-dublado}
+
+x-ambiente: &ambiente
+  PUID: ${PUID}
+  PGID: ${PGID}
+  UMASK: "002"
+  TZ: ${TZ}
+
+x-padrao: &padrao
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  # Indexadores (fontes de busca). Você adiciona os seus pelo painel; ele repassa para os outros apps.
+  prowlarr:
+    <<: *padrao
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment: *ambiente
+    volumes:
+      - ./config/prowlarr:/config
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_PROWLARR:-9696}:9696"]
+
+  # Passa pelo "Verificando seu navegador" do Cloudflare para os indexadores com a tag flaresolverr.
+  flaresolverr:
+    <<: *padrao
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: info
+
+  # Filmes
+  radarr:
+    <<: *padrao
+    image: lscr.io/linuxserver/radarr:latest
+    environment: *ambiente
+    volumes:
+      - ./config/radarr:/config
+      - ${PASTA_DADOS}:/data
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_RADARR:-7878}:7878"]
+
+  # Séries
+  sonarr:
+    <<: *padrao
+    image: lscr.io/linuxserver/sonarr:latest
+    environment: *ambiente
+    volumes:
+      - ./config/sonarr:/config
+      - ${PASTA_DADOS}:/data
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_SONARR:-8989}:8989"]
+
+  # Música
+  lidarr:
+    <<: *padrao
+    image: lscr.io/linuxserver/lidarr:latest
+    environment: *ambiente
+    volumes:
+      - ./config/lidarr:/config
+      - ${PASTA_DADOS}:/data
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_LIDARR:-8686}:8686"]
+
+  # Onde você assiste e ouve (TV, celular, navegador)
+  jellyfin:
+    <<: *padrao
+    image: jellyfin/jellyfin:latest
+    user: "${PUID}:${PGID}"
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ./config/jellyfin:/config
+      - ./config/jellyfin-cache:/cache
+      - ${PASTA_DADOS}/midia:/data/midia
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_JELLYFIN:-8096}:8096"]
+
+  # Onde a família pede filmes e séries
+  seerr:
+    <<: *padrao
+    image: seerr/seerr:latest
+    init: true
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: info
+    volumes:
+      - ./config/seerr:/app/config
+    ports: ["${IP_PAINEIS:-0.0.0.0}:${PORTA_SEERR:-5055}:5055"]
+
+  # Correções automáticas a cada 5 minutos (ver manutencao/manutencao.py)
+  manutencao:
+    <<: *padrao
+    image: python:3.13-alpine
+    command: ["python", "-u", "/app/manutencao.py"]
+    env_file: .env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./manutencao:/app:ro
+      - ./config:/config-apps:ro
+      - ${PASTA_DADOS}:/data:ro
+
+  # Só roda quando chamado pelo instalador: docker compose run --rm configurador
+  configurador:
+    image: python:3.13-alpine
+    profiles: ["ferramentas"]
+    command: ["python", "-u", "/app/configurar.py", "configurar"]
+    env_file: .env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./configurador:/app:ro
+      - ./config:/config-apps
+      - ${PASTA_DADOS}:/data

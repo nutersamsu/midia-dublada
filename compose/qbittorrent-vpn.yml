@@ -1,0 +1,49 @@
+# qBittorrent COM VPN (Gluetun). O qBittorrent usa a rede do Gluetun: se a VPN cair,
+# os torrents param (não vazam pelo seu IP). Provedores e opções:
+# https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers
+services:
+  gluetun:
+    restart: unless-stopped
+    image: qmcgaw/gluetun:latest
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun:/dev/net/tun"]
+    environment:
+      TZ: ${TZ}
+      VPN_SERVICE_PROVIDER: ${VPN_PROVEDOR}
+      VPN_TYPE: ${VPN_TIPO:-wireguard}
+      WIREGUARD_PRIVATE_KEY: ${VPN_WIREGUARD_CHAVE:-}
+      WIREGUARD_ADDRESSES: ${VPN_WIREGUARD_ENDERECO:-}
+      OPENVPN_USER: ${VPN_OPENVPN_USUARIO:-}
+      OPENVPN_PASSWORD: ${VPN_OPENVPN_SENHA:-}
+      SERVER_COUNTRIES: ${VPN_PAIS:-}
+    networks:
+      default:
+        # os outros apps continuam achando o qBittorrent pelo nome "qbittorrent"
+        aliases: [qbittorrent]
+    ports:
+      # só o painel; a porta de torrent não abre no seu roteador com VPN (o tráfego passa pelo túnel)
+      - "${IP_PAINEIS:-0.0.0.0}:${PORTA_QBITTORRENT:-8080}:${PORTA_QBITTORRENT:-8080}"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  qbittorrent:
+    restart: unless-stopped
+    image: lscr.io/linuxserver/qbittorrent:latest
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      UMASK: "002"
+      TZ: ${TZ}
+      WEBUI_PORT: ${PORTA_QBITTORRENT:-8080}
+      TORRENTING_PORT: ${PORTA_TORRENT:-6881}
+    volumes:
+      - ./config/qbittorrent:/config
+      - ${PASTA_DADOS}:/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
