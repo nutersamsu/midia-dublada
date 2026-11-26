@@ -151,6 +151,35 @@ O que acontece com cada versão:
 ### Legendas (Bazarr)
 Nos modos com legenda, o Bazarr procura legenda em português (Brasil) para tudo o que chega sem áudio em português, usando fontes que não pedem cadastro. Para achar **muito mais** legendas, crie uma conta grátis no [OpenSubtitles.com](https://www.opensubtitles.com) e coloque o usuário e a senha no **Bazarr › Settings › Providers › OpenSubtitles.com**.
 
+### Usar com outro idioma (avançado, não testado)
+O projeto foi feito e testado **só para o português do Brasil**. Para outro idioma, dá para adaptar à mão. O exemplo abaixo usa o **italiano**; troque pelos termos do seu idioma. Depois de mudar, rode `sudo ./gerenciar.sh reconfigurar`.
+
+**1. Filtro de idioma: [`configurador/formatos-ptbr.json`](configurador/formatos-ptbr.json)** (a parte mais importante)
+
+| Regra | O que trocar | Exemplo (italiano) |
+|---|---|---|
+| `🇧🇷 Idioma PT-BR` | `idiomas`: o nome do idioma como aparece no Radarr/Sonarr | `["Italian"]` |
+| `🇧🇷 Dublado no nome` | `regex`: palavras que indicam dublado no nome da versão | `(?i)\b(ita\|italiano\|doppiato)\b` |
+| `💬 Legendado no nome` | `regex`: palavras que indicam legenda no seu idioma | `(?i)\b(sub[ ._-]?ita\|sottotitol\w*)\b` |
+| `🚫 Outro idioma no nome` | **tire o seu idioma** da lista (senão tudo é recusado) e coloque o português | tirar `italian\|ita`; pôr `portugu[eê]s\|pt[ ._-]?br\|dublado` |
+
+Dentro do arquivo JSON, cada `\` vira `\\` (ex.: `(?i)\\b(ita|italiano|doppiato)\\b`). Se mudar o `nome` de uma regra, coloque o nome antigo em `formatos_antigos` para a regra antiga ser apagada.
+
+**2. O resto do português: [`configurador/configurar.py`](configurador/configurar.py)**
+
+| Onde (função) | O que está em português | Exemplo (italiano) |
+|---|---|---|
+| `idioma_ptbr` | `"Portuguese (Brazil)"`: idioma das interfaces do Radarr/Sonarr/Lidarr | `"Italian"` |
+| `interface_ptbr` | `"pt_BR"`: idioma da interface do Prowlarr | `"it"` |
+| `nomes_radarr` | `{Movie Title:pt-BR}`: título dos filmes no nome da pasta | `{Movie Title:it}` |
+| `nomes_sonarr` | `Temporada {season}`: nome da pasta de cada temporada | `Stagione {season}` |
+| `jellyfin` | `UICulture "pt-BR"`, `MetadataCountryCode "BR"`, `PreferredMetadataLanguage "pt"` (configuração inicial, do servidor e de cada biblioteca) | `"it-IT"`, `"IT"`, `"it"` |
+| `jellyfin` | `AudioLanguagePreference` e `SubtitleLanguagePreference` `"por"` | `"ita"` |
+| `bazarr` | idioma da legenda `"pb"` (2 vezes) | `"it"` |
+| `seerr` | `locale "pt-BR"`, `region "BR"` | `"it"`, `"IT"` |
+
+Os textos do instalador e dos logs continuam em português. Antes de confiar no filtro, confira no Radarr (**Filme › Busca interativa**) se as versões dubladas do seu idioma ganham pontos e se as outras são recusadas.
+
 ## 🔧 Manutenção automática
 
 O container `manutencao` corrige sozinho problemas que apareceram no uso real:
