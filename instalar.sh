@@ -242,6 +242,11 @@ SEMEAR_DIAS=${SEMEAR_DIAS:-7}
 LIDARR_BUSCA_ESPACADA=${LIDARR_BUSCA_ESPACADA:-sim}
 LIDARR_SEM_AO_VIVO=${LIDARR_SEM_AO_VIVO:-sim}
 
+# Radarr/Sonarr: procurar o que falta (lançamentos a cada 6 h, tudo 1 vez por dia)
+BUSCA_PERIODICA=${BUSCA_PERIODICA:-sim}
+# Tirar do Radarr/Sonarr o que você apagou pelo Jellyfin, para não baixar de novo (não apaga arquivos)
+LIMPEZA_JELLYFIN=${LIMPEZA_JELLYFIN:-sim}
+
 # Endereço onde os painéis respondem (0.0.0.0 = toda a rede local)
 IP_PAINEIS=${IP_PAINEIS:-0.0.0.0}
 IP_TORRENT=${IP_TORRENT:-0.0.0.0}

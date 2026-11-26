@@ -14,19 +14,34 @@
    bloqueia essa versão para não baixar de novo em loop. O arquivo fica na biblioteca.
 5. Lidarr (a cada 10 min): procura UM álbum faltando por vez, para não cair no limite das fontes,
    e desmarca álbuns com cara de show ao vivo.
+6. Busca de lançamentos (BUSCA_PERIODICA): o RSS só vê o que sai na hora, e a versão dublada
+   costuma sair dias depois. A cada 6 h procura episódios exibidos nos últimos 30 dias e filmes
+   lançados nos últimos 90 dias que ainda faltam; 1 vez por dia procura tudo o que falta.
+7. Limpeza pelo Jellyfin (LIMPEZA_JELLYFIN, de hora em hora): filme/série que você apagou pelo
+   Jellyfin sai do Radarr/Sonarr, para não ser baixado de novo. Só remove quando TUDO vale: não
+   está mais no Jellyfin, tem 0 arquivos, o histórico mostra que o arquivo foi apagado, está
+   desmonitorado e foi adicionado há mais de 24 h. Não roda se o Jellyfin estiver fora, com a
+   biblioteca quase vazia ou com a pasta inacessível; no máximo 3 por vez. Nunca apaga arquivos.
 
 Ver o que ela fez:  docker compose logs manutencao
 Simular sem mudar nada:  docker compose run --rm manutencao python /app/manutencao.py --simular --uma-vez
+Só uma tarefa:  ... python /app/manutencao.py --simular --uma-vez --so limpeza_jellyfin
 """
 import datetime as dt, http.cookiejar, json, os, re, sys, time, unicodedata
 import urllib.parse as q, urllib.request as u
 
 SIMULAR = "--simular" in sys.argv
 UMA_VEZ = "--uma-vez" in sys.argv
+SO = sys.argv[sys.argv.index("--so") + 1].split(",") if "--so" in sys.argv[:-1] else None
 ENV = os.environ
 SIM = ("sim", "s", "yes", "y", "true", "1")
 INTERVALO = 300
 INTERVALO_LIDARR = 600
+DIAS_EPISODIO, DIAS_FILME = 30, 90       # o que conta como "lançamento" na busca a cada 6 h
+MAX_REMOCOES = 3                         # limpeza pelo Jellyfin: mais que isso = suspeito, não mexe
+MIN_ITENS_JELLYFIN = 5                   # menos que isso = biblioteca não carregou / disco fora
+JELLYFIN = "http://jellyfin:8096"
+JF_AUT = 'MediaBrowser Client="arr-dublado", Device="manutencao", DeviceId="arr-dublado-manutencao", Version="1.0"'
 BLOQUEIO = "matched to movie by ID"
 VIDEO = (".mkv", ".mp4", ".avi", ".m4v")
 ESPERA_CADASTRO = 180    # s depois de concluir, para o app ter a chance de importar sozinho
@@ -77,6 +92,37 @@ def arr(app, caminho, corpo=None, metodo=None):
                   headers={"X-Api-Key": chave, "Content-Type": "application/json"})
     resp = u.urlopen(r, timeout=120).read()
     return json.loads(resp) if resp.strip() else {}
+
+
+_jf_token = None
+
+
+def jellyfin(caminho):
+    """Entra no Jellyfin com o USUARIO/SENHA do .env (o mesmo de todos os painéis).
+    Se você mudou a senha só no Jellyfin, coloque uma chave de API dele em JELLYFIN_CHAVE no .env."""
+    global _jf_token
+    if _jf_token is None and ENV.get("JELLYFIN_CHAVE"):
+        _jf_token = ENV["JELLYFIN_CHAVE"]
+    if _jf_token is None:
+        r = u.Request(JELLYFIN + "/Users/AuthenticateByName", method="POST",
+                      data=json.dumps({"Username": ENV.get("USUARIO", "admin"), "Pw": ENV.get("SENHA", "")}).encode(),
+                      headers={"Authorization": JF_AUT, "Content-Type": "application/json"})
+        _jf_token = json.loads(u.urlopen(r, timeout=30).read())["AccessToken"]
+    r = u.Request(JELLYFIN + caminho, headers={"Authorization": JF_AUT + f', Token="{_jf_token}"'})
+    try:
+        return json.loads(u.urlopen(r, timeout=60).read())
+    except u.HTTPError as e:
+        if e.code == 401:  # sessão expirou ou senha mudou
+            _jf_token = None
+        raise
+
+
+def data(txt):
+    return dt.datetime.fromisoformat(txt.replace("Z", "+00:00")) if txt else None
+
+
+def buscando(app, nomes):
+    return any(c["status"] in ("queued", "started") and c["name"] in nomes for c in arr(app, "command"))
 
 
 def radarr(c, corpo=None):
@@ -286,31 +332,133 @@ def lidarr_busca_espacada():
             arr("lidarr", "command", {"name": "AlbumSearch", "albumIds": [a["id"]]})
 
 
+def busca_recentes():
+    agora = dt.datetime.now(dt.timezone.utc)
+    if not buscando("sonarr", ("EpisodeSearch", "MissingEpisodeSearch", "SeriesSearch")):
+        faltam = arr("sonarr", "wanted/missing?pageSize=1000&monitored=true&includeSeries=true")["records"]
+        eps = [e for e in faltam if (d := data(e.get("airDateUtc"))) and agora - dt.timedelta(days=DIAS_EPISODIO) <= d <= agora]
+        if eps:
+            log(f"Sonarr: procurando {len(eps)} episódio(s) recente(s):",
+                ", ".join(f"{e['series']['title']} {e['seasonNumber']}x{e['episodeNumber']:02d}" for e in eps[:10]))
+            if not SIMULAR:
+                arr("sonarr", "command", {"name": "EpisodeSearch", "episodeIds": [e["id"] for e in eps]})
+    if not buscando("radarr", ("MoviesSearch", "MissingMoviesSearch")):
+        filmes = []
+        for m in arr("radarr", "movie"):
+            if not m.get("monitored") or m.get("hasFile") or not m.get("isAvailable"):
+                continue
+            datas = [d for k in ("digitalRelease", "physicalRelease", "inCinemas") if (d := data(m.get(k))) and d <= agora]
+            if datas and agora - max(datas) <= dt.timedelta(days=DIAS_FILME):
+                filmes.append(m)
+        if filmes:
+            log(f"Radarr: procurando {len(filmes)} filme(s) recente(s):", ", ".join(m["title"] for m in filmes[:10]))
+            if not SIMULAR:
+                arr("radarr", "command", {"name": "MoviesSearch", "movieIds": [m["id"] for m in filmes]})
+
+
+def busca_tudo():
+    if not buscando("sonarr", ("EpisodeSearch", "MissingEpisodeSearch")):
+        log("Sonarr: procurando todos os episódios monitorados que faltam")
+        if not SIMULAR:
+            arr("sonarr", "command", {"name": "MissingEpisodeSearch", "monitored": True})
+    if not buscando("radarr", ("MoviesSearch", "MissingMoviesSearch")):
+        log("Radarr: procurando todos os filmes monitorados que faltam")
+        if not SIMULAR:
+            arr("radarr", "command", {"name": "MissingMoviesSearch", "filterKey": "monitored", "filterValue": "true"})
+
+
+def ids_jellyfin(tipo):
+    itens = jellyfin(f"/Items?Recursive=true&IncludeItemTypes={tipo}&Fields=ProviderIds")["Items"]
+    return len(itens), {(k.lower(), str(v).lower()) for i in itens for k, v in (i.get("ProviderIds") or {}).items() if v}
+
+
+def apagado_de_verdade(h, evento):
+    """Arquivo que sumiu do disco (apagado pelo Jellyfin) ou apagado à mão; troca por versão melhor não conta."""
+    return h["eventType"] == evento and (h.get("data") or {}).get("reason") in ("MissingFromDisk", "Manual")
+
+
+def limpeza_jellyfin():
+    try:
+        n_series, jf_series = ids_jellyfin("Series")
+        n_filmes, jf_filmes = ids_jellyfin("Movie")
+    except Exception as e:
+        log("Limpeza: Jellyfin fora, nada feito:", e)
+        return
+    if n_series + n_filmes < MIN_ITENS_JELLYFIN:
+        log(f"Limpeza: Jellyfin com só {n_series + n_filmes} itens (fora ou sem disco?), nada feito")
+        return
+    for app in ("sonarr", "radarr"):
+        raizes = arr(app, "rootfolder")
+        if not raizes or not all(r.get("accessible") for r in raizes):
+            log(f"Limpeza: pasta do {app.capitalize()} inacessível, nada feito")
+            return
+    limite = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)
+    candidatos = []
+    for s in arr("sonarr", "series"):
+        if (s.get("statistics") or {}).get("episodeFileCount", 0) > 0 or (data(s.get("added")) or limite) > limite:
+            continue
+        if {("tvdb", str(s.get("tvdbId"))), ("tmdb", str(s.get("tmdbId"))), ("imdb", str(s.get("imdbId") or "").lower())} & jf_series:
+            continue
+        if not any(apagado_de_verdade(h, "episodeFileDeleted") for h in arr("sonarr", f"history/series?seriesId={s['id']}")):
+            continue
+        # o Sonarr desmonitora sozinho o episódio apagado; se você religou, a limpeza respeita
+        if s["monitored"] and any(e["monitored"] for e in arr("sonarr", f"episode?seriesId={s['id']}")):
+            continue
+        candidatos.append(("sonarr", s["title"], f"series/{s['id']}?deleteFiles=false&addImportListExclusion=false"))
+    for m in arr("radarr", "movie"):
+        if m.get("hasFile") or m["monitored"] or (data(m.get("added")) or limite) > limite:
+            continue
+        if {("tmdb", str(m.get("tmdbId"))), ("imdb", str(m.get("imdbId") or "").lower())} & jf_filmes:
+            continue
+        if not any(apagado_de_verdade(h, "movieFileDeleted") for h in arr("radarr", f"history/movie?movieId={m['id']}")):
+            continue
+        candidatos.append(("radarr", m["title"], f"movie/{m['id']}?deleteFiles=false&addImportExclusion=false"))
+    if len(candidatos) > MAX_REMOCOES:
+        log(f"Limpeza: {len(candidatos)} para remover (mais que {MAX_REMOCOES}), parece erro, nada feito:",
+            "; ".join(c[1] for c in candidatos[:10]))
+        return
+    for app, titulo, caminho in candidatos:
+        log(f"{app.capitalize()}: removi {titulo} (você apagou pelo Jellyfin; arquivos não foram tocados)")
+        if not SIMULAR:
+            arr(app, caminho, metodo="DELETE")
+
+
 TAREFAS = [tirar_forcado, importar_bloqueados, cadastrar_filmes_desconhecidos, cadastrar_series_desconhecidas,
            lambda: bloquear_resolucao_falsa("radarr", "movieId"), lambda: bloquear_resolucao_falsa("sonarr", "seriesId")]
+# tarefas com intervalo próprio: (função, intervalo em s, variável do .env, espera antes da 1ª vez)
+PERIODICAS = [(lidarr_busca_espacada, INTERVALO_LIDARR, "LIDARR_BUSCA_ESPACADA", 0),
+              (busca_recentes, 6 * 3600, "BUSCA_PERIODICA", 0),
+              (busca_tudo, 24 * 3600, "BUSCA_PERIODICA", 3600),
+              (limpeza_jellyfin, 3600, "LIMPEZA_JELLYFIN", 0)]
 
 
-def rodada(com_lidarr):
-    tarefas = TAREFAS + ([lidarr_busca_espacada] if com_lidarr else [])
-    for t in tarefas:
-        try:
-            t()
-        except Exception as e:  # um app fora do ar não impede o resto
-            log(f"erro em {getattr(t, '__name__', 'tarefa')}: {e}")
+def ligada(variavel):
+    return ENV.get(variavel, "sim").lower() in SIM
+
+
+def rodar(t):
+    try:
+        t()
+    except Exception as e:  # um app fora do ar não impede o resto
+        log(f"erro em {getattr(t, '__name__', 'tarefa')}: {e}")
 
 
 if __name__ == "__main__":
-    busca_lidarr = ENV.get("LIDARR_BUSCA_ESPACADA", "sim").lower() in SIM
     if UMA_VEZ:
-        rodada(busca_lidarr)
+        todas = TAREFAS + [f for f, _, var, _ in PERIODICAS if ligada(var)]
+        for t in todas:
+            if SO is None or getattr(t, "__name__", "") in SO:
+                rodar(t)
         sys.exit(0)
     log("manutenção iniciada (a cada 5 minutos)" + (" — simulação" if SIMULAR else ""))
     time.sleep(120)  # deixa os apps subirem
-    ultima_lidarr = 0.0
+    inicio = time.time()
+    proxima = {f: inicio + espera for f, _, _, espera in PERIODICAS}
     while True:
-        agora = time.time()
-        vez_lidarr = busca_lidarr and agora - ultima_lidarr >= INTERVALO_LIDARR
-        rodada(vez_lidarr)
-        if vez_lidarr:
-            ultima_lidarr = agora
+        for t in TAREFAS:
+            rodar(t)
+        for f, intervalo, var, _ in PERIODICAS:
+            if ligada(var) and time.time() >= proxima[f]:
+                rodar(f)
+                proxima[f] = time.time() + intervalo
         time.sleep(INTERVALO)

@@ -1,4 +1,4 @@
-# Mídia Dublada
+# Mídia Dublada: instalação automatizada de serviços de download de mídia
 
 **Automação de download e gerenciamento de mídia, dublada ou legendada em português.**
 
@@ -43,6 +43,8 @@ Não precisa saber Docker nem configurar nada à mão: o instalador faz as pergu
 - qBittorrent com pastas e categorias prontas; **não baixa `.exe`, `.bat` e afins**, comuns em torrent falso.
 - Limite de compartilhamento: quando é atingido, o torrent sai sozinho da lista.
 - Lidarr só com **álbuns e EPs de estúdio** (sem singles, coletâneas ou shows ao vivo).
+- **Busca de lançamentos**: a versão dublada costuma sair dias depois da estreia; episódios e filmes recentes que faltam são procurados de novo a cada 6 horas.
+- **Apagou no Jellyfin, não volta**: o que você apaga não é baixado de novo, e some também do Radarr/Sonarr.
 - **Manutenção automática** a cada 5 minutos ([detalhes](#-manutenção-automática)).
 - Mesmo usuário e senha em todos os painéis, e todos pedem login.
 
@@ -161,8 +163,14 @@ O container `manutencao` corrige sozinho problemas que apareceram no uso real:
 | Radarr travado em "matched to movie by ID" | Importa o arquivo |
 | Torrent em "Forçar início" que nunca sai da lista | Tira o forçado para o limite de compartilhamento valer |
 | Lidarr procurando centenas de álbuns de uma vez (as fontes bloqueiam) | Procura 1 álbum a cada 10 minutos e ignora shows ao vivo |
+| Episódio ou filme novo sem versão dublada no dia da estreia (o RSS não vê de novo) | A cada 6 h procura episódios exibidos nos últimos 30 dias e filmes lançados nos últimos 90 dias que faltam; 1 vez por dia, tudo o que falta |
+| Você apagou um filme ou série pelo Jellyfin e ele continua no Radarr/Sonarr | De hora em hora tira do Radarr/Sonarr (sem apagar arquivos). Só quando não está mais no Jellyfin, tem 0 arquivos, foi apagado mesmo (pelo histórico), está desmonitorado e foi adicionado há mais de 24 h. Se o Jellyfin estiver fora ou a biblioteca quase vazia, não faz nada; no máximo 3 por vez |
+
+O Radarr e o Sonarr também já vêm com **"desmonitorar o que foi apagado"** ligado: episódio ou filme que você apaga não é baixado de novo.
 
 Se aparecer um caso ambíguo, ela não mexe em nada; só registra no log: `sudo ./gerenciar.sh logs manutencao`.
+
+Para desligar alguma parte, mude para `nao` no `.env` e rode `sudo ./gerenciar.sh reconfigurar`: `BUSCA_PERIODICA` (busca de lançamentos), `LIMPEZA_JELLYFIN` (limpeza pelo Jellyfin), `LIDARR_BUSCA_ESPACADA` e `LIDARR_SEM_AO_VIVO`.
 
 ### Baixando à mão no qBittorrent
 Escolha a **categoria `radarr`** para filme ou **`sonarr`** para série. O resto é automático: cadastro, nome em português, pasta certa e aviso ao Jellyfin.

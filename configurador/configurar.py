@@ -401,12 +401,22 @@ def nomes_sonarr(app):
     ok("nomes de pastas e arquivos organizados (Temporada 1, 2...)")
 
 
+def desmonitorar_apagados(app, campo):
+    """O que você já baixou e depois apagou fica desmonitorado (não é baixado de novo)."""
+    cfg = app.get("config/mediamanagement")
+    if not cfg.get(campo):
+        cfg[campo] = True
+        app.put(f"config/mediamanagement/{cfg['id']}", cfg)
+    ok("o que você apagar não é baixado de novo (fica desmonitorado)")
+
+
 def radarr():
     etapa("Radarr (filmes)")
     app = Arr("radarr", 7878, "v3")
     login_painel(app)
     interface_ptbr(app, {"movieInfoLanguage": "ptbr"})
     nomes_radarr(app)
+    desmonitorar_apagados(app, "autoUnmonitorPreviouslyDownloadedMovies")
     perfil = formatos_ptbr(app)
     pasta_raiz(app, FILMES)
     cliente_qbit(app, "radarr")
@@ -420,6 +430,7 @@ def sonarr():
     login_painel(app)
     interface_ptbr(app)
     nomes_sonarr(app)
+    desmonitorar_apagados(app, "autoUnmonitorPreviouslyDownloadedEpisodes")
     perfil = formatos_ptbr(app)
     pasta_raiz(app, SERIES)
     cliente_qbit(app, "sonarr")
